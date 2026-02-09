@@ -3,6 +3,8 @@ package speedtester
 import (
 	"testing"
 	"time"
+
+	"github.com/metacubex/mihomo/adapter"
 )
 
 func TestTransferSummaryAdd(t *testing.T) {
@@ -74,5 +76,59 @@ func TestResultFormatErrors(t *testing.T) {
 	}
 	if result.FormatUploadSpeedValue() == result.UploadError {
 		t.Fatalf("expected upload speed value to ignore error string")
+	}
+}
+
+func TestProxyDedupKey(t *testing.T) {
+	mustParse := func(config map[string]any) *CProxy {
+		proxy, err := adapter.ParseProxy(config)
+		if err != nil {
+			t.Fatalf("ParseProxy: %v", err)
+		}
+		return &CProxy{Proxy: proxy, Config: config}
+	}
+
+	// 相同 server+port+type 应得到相同 key
+	p1 := mustParse(map[string]any{
+		"name": "node1", "type": "vless", "server": "a.com", "port": 443,
+		"uuid": "x", "network": "tcp",
+	})
+	p2 := mustParse(map[string]any{
+		"name": "node2", "type": "vless", "server": "a.com", "port": 443,
+		"uuid": "y", "network": "ws",
+	})
+	if k1, k2 := proxyDedupKey(p1), proxyDedupKey(p2); k1 != k2 {
+		t.Errorf("same server+port+type should have same key: %q vs %q", k1, k2)
+	}
+
+	// port 为 float64（YAML 常见）
+	p3 := mustParse(map[string]any{
+		"name": "node3", "type": "vless", "server": "a.com", "port": float64(443),
+		"uuid": "z", "network": "tcp",
+	})
+	if k1, k3 := proxyDedupKey(p1), proxyDedupKey(p3); k1 != k3 {
+		t.Errorf("port int vs float64 should match: %q vs %q", k1, k3)
+	}
+
+	// 不同 server 或 port 或 type 应得到不同 key
+	p4 := mustParse(map[string]any{
+		"name": "node4", "type": "vless", "server": "b.com", "port": 443,
+		"uuid": "x", "network": "tcp",
+	})
+	p5 := mustParse(map[string]any{
+		"name": "node5", "type": "vless", "server": "a.com", "port": 8443,
+		"uuid": "x", "network": "tcp",
+	})
+	p6 := mustParse(map[string]any{
+		"name": "node6", "type": "vmess", "server": "a.com", "port": 443,
+		"uuid": "x", "alterId": 0, "cipher": "auto",
+	})
+	keys := []string{proxyDedupKey(p1), proxyDedupKey(p4), proxyDedupKey(p5), proxyDedupKey(p6)}
+	seen := make(map[string]bool)
+	for _, k := range keys {
+		if seen[k] {
+			t.Errorf("expected unique keys for different server/port/type, duplicate: %q", k)
+		}
+		seen[k] = true
 	}
 }
