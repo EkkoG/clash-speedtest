@@ -163,23 +163,6 @@ type CProxy struct {
 	Config map[string]any
 }
 
-// proxyDedupKey 返回用于去重的键：server + port + type 相同则视为重复
-func proxyDedupKey(p *CProxy) string {
-	server, _ := p.Config["server"].(string)
-	portStr := ""
-	if port := p.Config["port"]; port != nil {
-		switch v := port.(type) {
-		case float64:
-			portStr = strconv.FormatInt(int64(v), 10)
-		case int:
-			portStr = strconv.Itoa(v)
-		case string:
-			portStr = v
-		}
-	}
-	return server + "|" + portStr + "|" + p.Type().String()
-}
-
 type RawConfig struct {
 	Providers map[string]map[string]any `yaml:"proxy-providers"`
 	Proxies   []map[string]any          `yaml:"proxies"`
@@ -295,7 +278,6 @@ func (st *SpeedTester) LoadProxies() (map[string]*CProxy, error) {
 	}
 
 	filteredProxies := make(map[string]*CProxy)
-	seenKey := make(map[string]struct{}) // 按 server+port+type 去重
 	for name := range allProxies {
 		shouldBlock := false
 		if len(blockKeywords) > 0 {
@@ -311,16 +293,9 @@ func (st *SpeedTester) LoadProxies() (map[string]*CProxy, error) {
 		if shouldBlock {
 			continue
 		}
-		if !filterRegexp.MatchString(name) {
-			continue
+		if filterRegexp.MatchString(name) {
+			filteredProxies[name] = allProxies[name]
 		}
-		p := allProxies[name]
-		key := proxyDedupKey(p)
-		if _, ok := seenKey[key]; ok {
-			continue // 已存在相同 server+port+type，跳过
-		}
-		seenKey[key] = struct{}{}
-		filteredProxies[name] = p
 	}
 	return filteredProxies, nil
 }
