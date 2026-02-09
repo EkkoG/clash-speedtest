@@ -1,4 +1,4 @@
-module github.com/faceair/clash-speedtest
+module github.com/ekkog/clash-speedtest
 
 go 1.24.0
 
@@ -115,3 +115,5 @@ require (
 	gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/faceair/clash-speedtest@1.8.4 => ./
